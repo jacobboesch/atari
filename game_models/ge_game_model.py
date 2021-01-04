@@ -73,10 +73,10 @@ class GETrainer(GEGameModel):
         pass
 
     def genetic_evolution(self, env):
-        print "population_size: " + str(self.population_size) +\
+        print ("population_size: " + str(self.population_size) +\
               ", mutation_rate: " + str(self.mutation_rate) +\
               ", selection_rate: " + str(self.selection_rate) +\
-              ", random_weight_range: " + str(self.random_weight_range)
+              ", random_weight_range: " + str(self.random_weight_range))
         population = None
 
         while True:

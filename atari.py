@@ -27,7 +27,7 @@ class Atari:
         total_step = 0
         while True:
             if total_run_limit is not None and run >= total_run_limit:
-                print "Reached total run limit of: " + str(total_run_limit)
+                print("Reached total run limit of: " + str(total_run_limit))
                 exit(0)
 
             run += 1
@@ -36,7 +36,7 @@ class Atari:
             score = 0
             while True:
                 if total_step >= total_step_limit:
-                    print "Reached total step limit of: " + str(total_step_limit)
+                    print("Reached total step limit of: " + str(total_step_limit))
                     exit(0)
                 total_step += 1
                 step += 1
@@ -74,12 +74,12 @@ class Atari:
         total_step_limit = args.total_step_limit
         total_run_limit = args.total_run_limit
         clip = args.clip
-        print "Selected game: " + str(game_name)
-        print "Selected mode: " + str(game_mode)
-        print "Should render: " + str(render)
-        print "Should clip: " + str(clip)
-        print "Total step limit: " + str(total_step_limit)
-        print "Total run limit: " + str(total_run_limit)
+        print("Selected game: " + str(game_name))
+        print("Selected mode: " + str(game_mode))
+        print("Should render: " + str(render))
+        print("Should clip: " + str(clip))
+        print("Total step limit: " + str(total_step_limit))
+        print("Total run limit: " + str(total_run_limit))
         return game_name, game_mode, render, total_step_limit, total_run_limit, clip
 
     def _game_model(self, game_mode,game_name, action_space):
@@ -92,7 +92,7 @@ class Atari:
         elif game_mode == "ge_testing":
             return GESolver(game_name, INPUT_SHAPE, action_space)
         else:
-            print "Unrecognized mode. Use --help"
+            print("Unrecognized mode. Use --help")
             exit(1)
 
 
