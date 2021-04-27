@@ -1,23 +1,24 @@
 import gym
 import argparse
 import numpy as np
-import atari_py
 from game_models.ddqn_game_model import DDQNTrainer, DDQNSolver
 from game_models.ge_game_model import GETrainer, GESolver
 from gym_wrappers import MainGymWrapper
 
 FRAMES_IN_OBSERVATION = 4
 FRAME_SIZE = 84
-INPUT_SHAPE = (FRAMES_IN_OBSERVATION, FRAME_SIZE, FRAME_SIZE)
+INPUT_SHAPE = (4,) #(FRAMES_IN_OBSERVATION, FRAME_SIZE, FRAME_SIZE)
 
 
 class Atari:
 
     def __init__(self):
         game_name, game_mode, render, total_step_limit, total_run_limit, clip = self._args()
-        env_name = game_name + "Deterministic-v4"  # Handles frame skipping (4) at every iteration
-        env = MainGymWrapper.wrap(gym.make(env_name))
-        self._main_loop(self._game_model(game_mode, game_name, env.action_space.n), env, render, total_step_limit, total_run_limit, clip)
+        env_name = game_name #+ "Deterministic-v4"  # Handles frame skipping (4) at every iteration
+        #env = MainGymWrapper.wrap(gym.make(env_name))
+        # replaced so that it can work for the cartpool env
+        env = gym.make(env_name)
+        #self._main_loop(self._game_model(game_mode, game_name, env.action_space.n), env, render, total_step_limit, total_run_limit, clip)
 
     def _main_loop(self, game_model, env, render, total_step_limit, total_run_limit, clip):
         if isinstance(game_model, GETrainer):
@@ -60,7 +61,7 @@ class Atari:
 
     def _args(self):
         parser = argparse.ArgumentParser()
-        available_games = list((''.join(x.capitalize() or '_' for x in word.split('_')) for word in atari_py.list_games()))
+        available_games = []#list((''.join(x.capitalize() or '_' for x in word.split('_')) for word in atari_py.list_games()))
         parser.add_argument("-g", "--game", help="Choose from available games: " + str(available_games) + ". Default is 'breakout'.", default="Breakout")
         parser.add_argument("-m", "--mode", help="Choose from available modes: ddqn_train, ddqn_test, ge_train, ge_test. Default is 'ddqn_training'.", default="ddqn_training")
         parser.add_argument("-r", "--render", help="Choose if the game should be rendered. Default is 'False'.", default=False, type=bool)

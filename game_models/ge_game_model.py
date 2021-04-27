@@ -4,10 +4,19 @@ from statistics import mean
 import numpy as np
 import os
 import shutil
-from game_models.base_game_model import BaseGameModel
-from convolutional_neural_network import ConvolutionalNeuralNetwork
+import tensorflow as tf
+from evolution.game_models.base_game_model import BaseGameModel
+from evolution.convolutional_neural_network import ConvolutionalNeuralNetwork
 
+# TODO get this running as is on the cartpool enviornment
+# TODO things to figure out:
+# 1. figure out what the hell it's doing with the is not instance()
+# 2. Find out how this stops training
 
+# OTHER THINGS
+# Look into changing this into a tensorflow training process
+# I'd like to update the code to use linear algebra and use tensorflow to
+# quickly run a bunch of matrix operations in parallel instead of what its doing now in sequence
 class GEGameModel(BaseGameModel):
 
     model = None
@@ -23,9 +32,7 @@ class GEGameModel(BaseGameModel):
         self.model = ConvolutionalNeuralNetwork(input_shape, action_space).model
 
     def _predict(self, state):
-        if np.random.rand() < 0.02:
-            return random.randrange(self.action_space)
-        q_values = self.model.predict(np.expand_dims(np.asarray(state).astype(np.float64), axis=0), batch_size=1)
+        q_values = self.model.predict(np.expand_dims(np.array(state, dtype=np.float32), axis=0), batch_size=1)
         return np.argmax(q_values[0])
 
 
@@ -57,6 +64,9 @@ class GETrainer(GEGameModel):
     random_weight_range = 1.0
     parents = int(population_size * selection_rate)
 
+    #TODO remove this later
+    avg_score = 0
+
     def __init__(self, game_name, input_shape, action_space):
         GEGameModel.__init__(self,
                              game_name,
@@ -78,28 +88,25 @@ class GETrainer(GEGameModel):
               ", selection_rate: " + str(self.selection_rate) +\
               ", random_weight_range: " + str(self.random_weight_range))
         population = None
-
-        while True:
+        # TODO change this to something else probably 
+        while self.avg_score < 200:
             print('{{"metric": "generation", "value": {}}}'.format(self.generation))
 
             # 1. Selection
             parents = self._strongest_parents(population, env)
 
+            # TODO possibly remove this to save on trainig speed no need to perform 
+            # unnesseary I/O operations
             self._save_model(parents)  # Saving main model based on the current best two chromosomes
 
             # 2. Crossover (Roulette selection)
-            pairs = []
-            while len(pairs) != self.population_size:
-                pairs.append(self._pair(parents))
-
-            # # 2. Crossover (Rank selection)
-            # pairs = self._combinations(parents)
-            # random.shuffle(pairs)
-            # pairs = pairs[:self.population_size]
+            pairs = self._create_pairs(parents)
 
             base_offsprings = []
             for pair in pairs:
+                # do a cross over on the chromosomes/weights
                 offsprings = self._crossover(pair[0][0], pair[1][0])
+                # appended the last child to the base offsprings
                 base_offsprings.append(offsprings[-1])
 
             # 3. Mutation
@@ -107,16 +114,27 @@ class GETrainer(GEGameModel):
             population = new_population
             self.generation += 1
 
+    def _create_pairs(self, parents):
+        pairs = []
+        while len(pairs) != self.population_size:
+            pairs.append(self._pair(parents))
+
     def _pair(self, parents):
+        # get the total sum of the parents score
         total_parents_score = sum([x[1] for x in parents])
+        # pick a random score between 0 and the sum total of the selected AI's
         pick = random.uniform(0, total_parents_score)
+        # TODO look into this could be a problem it looks like it's picking the same parent for the 
+        # pair at random. 
         pair = [self._roulette_selection(parents, pick), self._roulette_selection(parents, pick)]
         return pair
-
+    
+    #TODO remove this method once replace with new method
     def _roulette_selection(self, parents, pick):
         current = 0
         for parent in parents:
             current += parent[1]
+            # go until the current score is > random pick
             if current > pick:
                 return parent
         return random.choice(parents) # Fallback
@@ -135,15 +153,20 @@ class GETrainer(GEGameModel):
         for i in range(0, len(population)):
             chromosome = population[i]
             scores_for_chromosomes.append((chromosome, self._gameplay_for_chromosome(chromosome, env)))
-
+        # TODO could replace this with a data strucutre that only holds the top (selection rate) chromosomes and scores
+        # This might be equally efficent but it would reduce on memory space
+        # the current code sorts it so that the best chromosomes are last
         scores_for_chromosomes.sort(key=lambda x: x[1])
+        # cut off everything but the last x% leaving the best at the end of the list
         top_performers = scores_for_chromosomes[-self.parents:]
         top_scores = [x[1] for x in top_performers]
         print('{{"metric": "population", "value": {}}}'.format(mean([x[1] for x in scores_for_chromosomes])))
         print('{{"metric": "top_min", "value": {}}}'.format(min(top_scores)))
         print('{{"metric": "top_avg", "value": {}}}'.format(mean(top_scores)))
         print('{{"metric": "top_max", "value": {}}}'.format(max(top_scores)))
-        return top_performers
+        #TODO remove this
+        self.avg_score = mean(top_scores)
+        return top_performers # returns the (selection rate parents)
 
     def _mutation(self, base_offsprings):
         offsprings = []
@@ -172,6 +195,18 @@ class GETrainer(GEGameModel):
             offsprings.append(offspring_mutation)
         return offsprings
 
+
+    # TODO replace the entire algorithm with the following 
+    # use tf.random.uniform to create a random matrix of zero's and 1's
+    # Create a second matrix that is the complement of the first or opposite
+    # turn all 1's to zeros and 0's to ones
+    # Do this by taking the first matrix adding it to a matrix of negative ones then
+    # multiply it by negative 1 thus all zeros are 1's and 1's are zeros
+    # Multiply the first crossover matrix with the first parent
+    # Then multiply the second crossover matrix with the second parrent'
+    # Finally, add the two products together and you should have your cross over
+    # can make the 1's matrix using tf.ones then multiply it by -1 so the algorithm works
+    # NOTE must use dot product
     def _crossover(self, x, y):
         offspring_x = x
         offspring_y = y
@@ -195,14 +230,17 @@ class GETrainer(GEGameModel):
                     for d in range(0, len(c_layer)):  # 4
                         d_layer = c_layer[d]
                         for e in range(0, len(d_layer)):  # 32
+                            # randomly choose true or false
                             if random.choice([True, False]):
+                                # for this weight in the model swap x and y
+                                # essentially crossing over genes
                                 offspring_x[a][b][c][d][e] = y[a][b][c][d][e]
                                 offspring_y[a][b][c][d][e] = x[a][b][c][d][e]
         return offspring_x, offspring_y
 
     def _gameplay_for_chromosome(self, chromosome, env):
         self.run += 1
-        self.logger.add_run(self.run)
+        #self.logger.add_run(self.run)
 
         self.model.set_weights(chromosome)
         state = env.reset()
@@ -213,40 +251,39 @@ class GETrainer(GEGameModel):
             score += np.sign(reward)
             state = state_next
             if terminal:
-                self.logger.add_score(score)
+                #self.logger.add_score(score)
                 return score
+    #TODO remove this
+    @tf.function
+    def generate_random_weights(self, shape):
+        return tf.random.uniform(shape, -self.random_weight_range, self.random_weight_range, dtype=tf.dtypes.float32)
 
     def _initial_population(self):
         weights = self.model.get_weights()
-        chromosomes = []
+        population = np.empty((self.population_size,), dtype=object)
+        new_weights = np.empty((len(weights)), dtype=object)
 
         for i in range(0, self.population_size):
-            chromosome = weights # 1 686 180 params
-            for a in range(0, len(weights)): # 10
-                a_layer = weights[a]
-                for b in range(0, len(a_layer)):  # 8
-                    b_layer = a_layer[b]
-                    if not isinstance(b_layer, np.ndarray):
-                        weights[a][b] = self._random_weight()
-                        continue
-                    for c in range(0, len(b_layer)):  # 8
-                        c_layer = b_layer[c]
-                        if not isinstance(c_layer, np.ndarray):
-                            weights[a][b][c] = self._random_weight()
-                            continue
-                        for d in range(0, len(c_layer)):  # 4
-                            d_layer = c_layer[d]
-                            for e in range(0, len(d_layer)):  # 32
-                                weights[a][b][c][d][e] = self._random_weight()
-            chromosomes.append(chromosome)
-        return chromosomes
+            for j in range(0, len(weights)):
+                layer = weights[j]
+                new_weights[j] = np.random.uniform(
+                    low=-self.random_weight_range,
+                    high=self.random_weight_range,
+                    size=layer.shape
+                )
+            population[i] = np.copy(new_weights)
+        return population
 
     def _random_weight(self):
         return random.uniform(-self.random_weight_range, self.random_weight_range)
 
     def _save_model(self, parents):
+        # Takes the top two performers and makes a deep copy of the weights
         x = copy.deepcopy(parents[-1][0])
         y = copy.deepcopy(parents[-2][0])
+        
         best_offsprings = self._crossover(x, y)
+        # sets the weights to one of the offsprings
         self.model.set_weights(best_offsprings[-1])
+        # saves the model
         self.model.save_weights(self.model_path)

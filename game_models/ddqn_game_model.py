@@ -3,7 +3,10 @@ import os
 import random
 import shutil
 from statistics import mean
-from game_models.base_game_model import BaseGameModel
+from .base_game_model import BaseGameModel
+import sys
+sys.path.append("..") # Adds higher directory to python modules path.
+
 from convolutional_neural_network import ConvolutionalNeuralNetwork
 
 GAMMA = 0.99

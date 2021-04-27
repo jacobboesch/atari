@@ -1,5 +1,5 @@
 import datetime
-from logger import Logger
+from evolution.logger import Logger
 
 
 class BaseGameModel:
