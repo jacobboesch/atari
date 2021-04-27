@@ -8,6 +8,7 @@ class ConvolutionalNeuralNetwork:
     def __init__(self, input_shape, action_space):
         self.model = Sequential()
         # NN for the cartpool env
+        
         self.model.add(Flatten(input_shape=input_shape))
         self.model.add(Dense(128, activation="relu"))
         self.model.add(Dense(32, activation="relu"))

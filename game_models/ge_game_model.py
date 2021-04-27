@@ -7,6 +7,7 @@ import shutil
 import tensorflow as tf
 from evolution.game_models.base_game_model import BaseGameModel
 from evolution.convolutional_neural_network import ConvolutionalNeuralNetwork
+from tensorflow.python.keras.backend import dtype
 
 # TODO get this running as is on the cartpool enviornment
 # TODO things to figure out:
@@ -105,9 +106,9 @@ class GETrainer(GEGameModel):
             base_offsprings = []
             for pair in pairs:
                 # do a cross over on the chromosomes/weights
-                offsprings = self._crossover(pair[0][0], pair[1][0])
+                offspring = self._crossover(pair[0][0], pair[1][0])
                 # appended the last child to the base offsprings
-                base_offsprings.append(offsprings[-1])
+                base_offsprings.append(offspring)
 
             # 3. Mutation
             new_population = self._mutation(base_offsprings)
@@ -195,48 +196,35 @@ class GETrainer(GEGameModel):
             offsprings.append(offspring_mutation)
         return offsprings
 
+    # reutrns a new set of weights by doing a crossover of the two layers
+    # randomly combines the x and y chromosomes
+    def _crossover_layers(self, x: np.ndarray, y: np.ndarray):
+        # this will randomly fill a matrix 50/50 with 0 and 1's
+        cross_over_matrix = np.random.choice(
+            a=[0, 1],
+            size=x.shape,
+            p=[0.5, 0.5]
+        )
+        negative_1_matrix = np.ones(cross_over_matrix.shape)
+        negative_1_matrix = negative_1_matrix * -1
+        # change all 0's to 1's and all 1's to zeros
+        cross_over_complement = cross_over_matrix + negative_1_matrix
+        # change -1's to 1's
+        cross_over_complement = cross_over_complement * -1
+        # x half of the offspring
+        x_half = x * cross_over_matrix
+        y_half = y * cross_over_complement
 
-    # TODO replace the entire algorithm with the following 
-    # use tf.random.uniform to create a random matrix of zero's and 1's
-    # Create a second matrix that is the complement of the first or opposite
-    # turn all 1's to zeros and 0's to ones
-    # Do this by taking the first matrix adding it to a matrix of negative ones then
-    # multiply it by negative 1 thus all zeros are 1's and 1's are zeros
-    # Multiply the first crossover matrix with the first parent
-    # Then multiply the second crossover matrix with the second parrent'
-    # Finally, add the two products together and you should have your cross over
-    # can make the 1's matrix using tf.ones then multiply it by -1 so the algorithm works
-    # NOTE must use dot product
-    def _crossover(self, x, y):
-        offspring_x = x
-        offspring_y = y
+        offspring = x_half + y_half
+        return offspring
 
-        for a in range(0, len(offspring_x)):  # 10
-            a_layer = offspring_x[a]
-            for b in range(0, len(a_layer)):  # 8
-                b_layer = a_layer[b]
-                if not isinstance(b_layer, np.ndarray):
-                    if random.choice([True, False]):
-                        offspring_x[a][b] = y[a][b]
-                        offspring_y[a][b] = x[a][b]
-                    continue
-                for c in range(0, len(b_layer)):  # 8
-                    c_layer = b_layer[c]
-                    if not isinstance(c_layer, np.ndarray):
-                        if random.choice([True, False]):
-                            offspring_x[a][b][c] = y[a][b][c]
-                            offspring_y[a][b][c] = x[a][b][c]
-                        continue
-                    for d in range(0, len(c_layer)):  # 4
-                        d_layer = c_layer[d]
-                        for e in range(0, len(d_layer)):  # 32
-                            # randomly choose true or false
-                            if random.choice([True, False]):
-                                # for this weight in the model swap x and y
-                                # essentially crossing over genes
-                                offspring_x[a][b][c][d][e] = y[a][b][c][d][e]
-                                offspring_y[a][b][c][d][e] = x[a][b][c][d][e]
-        return offspring_x, offspring_y
+    # crossover the x and y parents to make a child
+    def _crossover(self, x: np.ndarray, y: np.ndarray):
+        child = np.empty(shape=(len(x)), dtype=np.ndarray)
+        for i in range(0, len(child)):
+            child_layer = self._crossover_layers(x[i], y[i])
+            child[i] = child_layer
+        return child
 
     def _gameplay_for_chromosome(self, chromosome, env):
         self.run += 1
@@ -253,10 +241,6 @@ class GETrainer(GEGameModel):
             if terminal:
                 #self.logger.add_score(score)
                 return score
-    #TODO remove this
-    @tf.function
-    def generate_random_weights(self, shape):
-        return tf.random.uniform(shape, -self.random_weight_range, self.random_weight_range, dtype=tf.dtypes.float32)
 
     def _initial_population(self):
         weights = self.model.get_weights()
