@@ -4,10 +4,7 @@ import random
 import shutil
 from statistics import mean
 from .base_game_model import BaseGameModel
-import sys
-sys.path.append("..") # Adds higher directory to python modules path.
-
-from convolutional_neural_network import ConvolutionalNeuralNetwork
+from evolution.convolutional_neural_network import ConvolutionalNeuralNetwork
 
 GAMMA = 0.99
 MEMORY_SIZE = 900000
